@@ -3,90 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Text Scanner</title>
+    <title>Scanner Web App</title>
     <style>
-        * { box-sizing: border-box; }
-        body { font-family: 'Prompt', sans-serif; background-color: #f8f9fa; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
-        .card { background: white; padding: 2rem; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 450px; text-align: center; }
-        h2 { color: #333; margin-bottom: 1.5rem; }
-        #video { width: 100%; border-radius: 12px; background: #222; transform: scaleX(1); }
-        .btn { background: #007bff; color: white; border: none; padding: 1rem 2rem; font-size: 1.1rem; border-radius: 50px; cursor: pointer; width: 100%; margin-top: 1.5rem; transition: 0.3s; }
-        .btn:disabled { background: #ccc; cursor: not-allowed; }
-        #status { margin-top: 1.2rem; font-size: 0.9rem; color: #666; min-height: 3rem; line-height: 1.4; }
+        body { font-family: 'Prompt', sans-serif; text-align: center; background-color: #f0f2f5; padding: 20px; }
+        .container { max-width: 400px; margin: auto; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        #video { width: 100%; border-radius: 10px; background: #000; margin-bottom: 15px; }
+        button { background-color: #28a745; color: white; border: none; padding: 15px; font-size: 18px; border-radius: 10px; cursor: pointer; width: 100%; transition: 0.2s; }
+        button:active { background-color: #218838; }
+        button:disabled { background-color: #ccc; }
+        #status { margin-top: 15px; color: #666; font-size: 14px; min-height: 40px; }
         canvas { display: none; }
     </style>
 </head>
 <body>
 
-    <div class="card">
-        <h2>📷 สแกนข้อความ</h2>
-        <video id="video" autoplay playsinline></video>
-        <canvas id="canvas"></canvas>
+<div class="container">
+    <h3>📸 สแกนข้อความลง Sheet</h3>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+    <button id="btn-scan">กดถ่ายรูปเพื่อสแกน</button>
+    <div id="status">กำลังเปิดกล้อง...</div>
+</div>
 
-        <button id="capture-btn" class="btn">ถ่ายภาพและบันทึก</button>
-        <div id="status">กำลังเริ่มต้นกล้อง...</div>
-    </div>
+<script>
+    // *** เปลี่ยน URL ด้านล่างนี้เป็น Web App URL ของคุณ ***
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwqcbVehq7IHIzOK0oNw4IPIy8iVpeXWxWc7eyh44DMFumNo4NCH73qXq2mocPQgYC9/exec";
 
-    <script>
-        // *** วาง URL ของ Google Apps Script ที่ Deploy เสร็จแล้วตรงนี้ ***
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw_1Nm9HOu5zrtk5Jc8aESCIKxkdaLzYpBmoV_1Vv92ADPNuGqntLXTo-GgSmbACb0N/exec";
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const btnScan = document.getElementById('btn-scan');
+    const status = document.getElementById('status');
 
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const btn = document.getElementById('capture-btn');
-        const status = document.getElementById('status');
-
-        // เริ่มต้นกล้อง
-        async function startCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment" }, 
-                    audio: false 
-                });
-                video.srcObject = stream;
-                status.innerText = "เล็งกล้องไปที่ข้อความแล้วกดปุ่ม";
-            } catch (err) {
-                status.innerText = "ไม่สามารถเปิดกล้องได้: " + err.message;
-                btn.disabled = true;
-            }
+    // เริ่มต้นกล้อง
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment" }, 
+                audio: false 
+            });
+            video.srcObject = stream;
+            status.innerText = "เล็งไปที่ข้อความแล้วกดปุ่มสแกน";
+        } catch (err) {
+            status.innerText = "ไม่สามารถเปิดกล้องได้: " + err.message;
         }
+    }
 
-        btn.addEventListener('click', async () => {
-            status.innerText = "⏳ กำลังส่งข้อมูลไปยัง Google Sheet...";
-            btn.disabled = true;
+    btnScan.addEventListener('click', async () => {
+        status.innerHTML = "⏳ กำลังถ่ายภาพและประมวลผล...";
+        btnScan.disabled = true;
 
-            // จับภาพจาก Video ลง Canvas
-            const ctx = canvas.getContext('2d');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const ctx = canvas.getContext('2d');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            // แปลงภาพเป็น Base64
-            const base64Image = canvas.toDataURL('image/jpeg', 0.8);
+        // บีบอัดไฟล์ภาพเล็กน้อย (0.7) เพื่อให้ส่งข้อมูลได้เร็วขึ้น
+        const base64Image = canvas.toDataURL('image/jpeg', 0.7);
 
-            try {
-                // ส่งข้อมูลด้วย Fetch
-                await fetch(WEB_APP_URL, {
-                    method: "POST",
-                    mode: "no-cors", // จำเป็นสำหรับเรียกข้ามโดเมนไปยัง GAS
-                    headers: { "Content-Type": "text/plain" },
-                    body: JSON.stringify({ image: base64Image })
-                });
+        try {
+            // ส่งข้อมูลไปยัง GAS (ใช้โหมด no-cors เพื่อข้ามปัญหา Security ของเบราว์เซอร์)
+            await fetch(WEB_APP_URL, {
+                method: "POST",
+                mode: "no-cors",
+                headers: { "Content-Type": "text/plain" },
+                body: JSON.stringify({ image: base64Image })
+            });
 
-                // แจ้งเตือนสำเร็จ (เนื่องจาก no-cors จะอ่าน response ไม่ได้ จึงแสดงสำเร็จทันทีที่ส่งเสร็จ)
-                status.innerHTML = "<b style='color:green;'>✅ ส่งข้อมูลเรียบร้อย!</b><br>ระบบกำลังประมวลผล OCR ใน Google Sheet";
-                
-            } catch (error) {
-                status.innerText = "❌ เกิดข้อผิดพลาด: " + error.message;
-            } finally {
-                setTimeout(() => {
-                    btn.disabled = false;
-                    status.innerText = "พร้อมสแกนภาพต่อไป...";
-                }, 3000);
-            }
-        });
+            status.innerHTML = "<b style='color:green;'>✅ ส่งข้อมูลเรียบร้อย!</b><br>โปรดตรวจสอบข้อมูลใน Google Sheet";
+        } catch (err) {
+            status.innerText = "❌ เกิดข้อผิดพลาด: " + err.message;
+        } finally {
+            setTimeout(() => {
+                btnScan.disabled = false;
+                status.innerText = "พร้อมสแกนภาพถัดไป";
+            }, 3000);
+        }
+    });
 
-        window.onload = startCamera;
-    </script>
+    window.onload = startCamera;
+</script>
+
 </body>
 </html>
