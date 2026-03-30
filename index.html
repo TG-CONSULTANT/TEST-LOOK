@@ -3,103 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OCR Scanner to Google Sheets</title>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <title>AI Text Scanner - GitHub Edition</title>
     <style>
-        :root { --primary: #2c3e50; --success: #27ae60; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-        .container { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 90%; max-width: 500px; margin-top: 2rem; }
-        h2 { color: var(--primary); text-align: center; margin-bottom: 1.5rem; }
-        .config-section { background: #eef2f3; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; }
-        input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
-        #video { width: 100%; border-radius: 8px; background: #000; margin-bottom: 1rem; }
-        .btn { width: 100%; padding: 15px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; border-radius: 8px; transition: 0.3s; }
-        .btn-scan { background: var(--success); color: white; margin-bottom: 1rem; }
-        .btn-scan:disabled { background: #95a5a6; cursor: not-allowed; }
-        #status { font-size: 14px; color: #666; text-align: center; min-height: 20px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 20px; background-color: #f0f2f5; }
+        #video { width: 100%; max-width: 400px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); background: #000; }
+        .container { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        button { background-color: #007bff; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 50px; cursor: pointer; margin-top: 20px; width: 100%; transition: 0.3s; }
+        button:disabled { background-color: #ccc; }
+        #status { margin-top: 20px; font-size: 14px; color: #555; line-height: 1.6; }
         canvas { display: none; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Scanner Web App</h2>
-
-    <div class="config-section">
-        <label style="font-size: 12px; color: #555;">วาง Web App URL จาก Google Apps Script:</label>
-        <input type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/AKfycbwOJals3bF2-EsAp9U2NED4OAu_H_FI1_0xIzZhzEQIAaXFQhhO_9Nq2NaHox6-AxgT/exec">
-    </div>
-
+    <h2>📸 สแกนข้อความลง Sheet</h2>
     <video id="video" autoplay playsinline></video>
-    <button id="scanBtn" class="btn btn-scan">สแกนและส่งข้อมูล</button>
-    
-    <div id="status">รอการเชื่อมต่อกล้อง...</div>
     <canvas id="canvas"></canvas>
+
+    <button id="capture-btn">กดเพื่อถ่ายรูปและอ่านข้อความ</button>
+    <div id="status">กรุณาอนุญาตให้เข้าถึงกล้อง...</div>
 </div>
 
 <script>
+    // *** วาง URL ที่ได้จากหน้า Deploy ของ Google Apps Script ที่นี่ ***
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxnG48NChWQEZCjLN5X32QRfXIjkUWpCpJaXLtarWL9rcL_Q3IW7mMcIAw5jTmVGDNT/exec";
+
     const video = document.getElementById('video');
-    const scanBtn = document.getElementById('scanBtn');
-    const status = document.getElementById('status');
-    const scriptUrlInput = document.getElementById('scriptUrl');
     const canvas = document.getElementById('canvas');
+    const btn = document.getElementById('capture-btn');
+    const status = document.getElementById('status');
 
     // เรียกใช้งานกล้อง
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-        .then(stream => {
+    async function initCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment" }, 
+                audio: false 
+            });
             video.srcObject = stream;
-            status.innerText = "กล้องพร้อมใช้งาน";
-        })
-        .catch(err => {
-            status.innerText = "ไม่สามารถเปิดกล้องได้: " + err.message;
-        });
-
-    scanBtn.addEventListener('click', async () => {
-        const url = scriptUrlInput.value.trim();
-        
-        if (!url) {
-            alert("กรุณาใส่ URL ของ Google Apps Script ก่อนครับ");
-            return;
+            status.innerText = "กล้องพร้อมใช้งาน - เล็งไปที่ข้อความ";
+        } catch (err) {
+            status.innerText = "ผิดพลาด: ไม่สามารถเปิดกล้องได้ (" + err.message + ")";
         }
+    }
 
-        scanBtn.disabled = true;
-        status.innerText = "กำลังสแกนข้อความ (OCR)...";
+    btn.addEventListener('click', async () => {
+        status.innerText = "⏳ กำลังบันทึกภาพและประมวลผล...";
+        btn.disabled = true;
 
+        // วาดรูปลง Canvas
         const context = canvas.getContext('2d');
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+        // แปลงเป็น Base64
+        const base64Image = canvas.toDataURL('image/jpeg');
+
         try {
-            // ทำ OCR
-            const { data: { text } } = await Tesseract.recognize(canvas.toDataURL(), 'tha+eng');
-            const lines = text.split('\n').filter(l => l.trim() !== "");
+            // ส่งข้อมูลไปยัง Google Apps Script ด้วย Fetch
+            const response = await fetch(WEB_APP_URL, {
+                method: "POST",
+                mode: "no-cors", // จำเป็นต้องใช้ no-cors สำหรับ GAS Web App
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ image: base64Image })
+            });
+
+            // หมายเหตุ: เนื่องจากโหมด no-cors จะอ่าน response ตรงๆ ไม่ได้ 
+            // จึงต้องใช้การหน่วงเวลาหรือเช็คสถานะจากฝั่ง Sheet แทน 
+            // หรือเปลี่ยนวิธีจัดการ Response เล็กน้อย
+            status.innerHTML = "✅ ส่งข้อมูลเรียบร้อย!<br>กรุณาตรวจสอบใน Google Sheet";
             
-            const colA = lines[0] || "N/A";
-            const colB = lines[2] || "N/A";
-
-            status.innerText = `พบข้อมูล: A=${colA}, B=${colB} กำลังส่งข้อมูล...`;
-
-            // ส่งข้อมูลไปยัง Apps Script ผ่าน Fetch API (JSONP/CORS)
-            // หมายเหตุ: ในฝั่ง code.gs ต้องใช้ฟังก์ชัน doPost(e) หรือ doGet(e) ที่รองรับ CORS
-            const finalUrl = `${url}?colA=${encodeURIComponent(colA)}&colB=${encodeURIComponent(colB)}`;
-
-            fetch(finalUrl, { method: 'GET', mode: 'no-cors' })
-                .then(() => {
-                    status.innerText = "✅ บันทึกข้อมูลเรียบร้อย!";
-                    setTimeout(() => { status.innerText = "กล้องพร้อมใช้งาน"; scanBtn.disabled = false; }, 3000);
-                })
-                .catch(err => {
-                    status.innerText = "❌ ส่งข้อมูลไม่สำเร็จ";
-                    scanBtn.disabled = false;
-                });
-
-        } catch (err) {
-            status.innerText = "❌ เกิดข้อผิดพลาด";
-            console.error(err);
-            scanBtn.disabled = false;
+        } catch (error) {
+            status.innerText = "❌ เกิดข้อผิดพลาด: " + error.message;
+        } finally {
+            btn.disabled = false;
         }
     });
+
+    window.onload = initCamera;
 </script>
 
 </body>
